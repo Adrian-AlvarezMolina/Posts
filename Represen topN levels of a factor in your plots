@@ -1,0 +1,32 @@
+library(tidyverse)
+
+example <- data.frame(Name = c("Kieran","Elisa","Zoe","Tom","Marlom","Lisa"),
+                      Vegetarian = c("no","no","yes", "yes", "not mentioned", "no"),
+                      City = c("Madrid","Barcelona","Sevilla","Sevilla", "Madrid", "Sevilla"),
+                      Salary = c(10000,25000,22000,21000, 15000, 17000),
+                      stringsAsFactors = FALSE)
+
+# Convert into factors those variables with 3 or less levels
+example_factorized <- example %>%
+                      mutate_if(.predicate = function(x){n_distinct(x) <= 3}, as.factor)
+# Changing the top_n_levels we can subset the top1, top3 or top5 categories
+top_n_levels <- 3
+
+my_top_cities <- example_factorized %>% 
+                 count(City, sort = T) %>% 
+                 .[1:top_n_levels,1] %>%
+                 as.data.frame()
+
+# Here are two alternatives, and effective options
+top_cities <- example_factorized %>% 
+              filter(City %in% my_top_cities[,])
+top_cities <- example_factorized %>% 
+              filter(City %in% pull(my_top_cities))
+              
+# Now we can create easier our graphics changing the top_n_levels argument
+top_cities %>% 
+  ggplot(aes(x = City)) +
+  geom_bar(aes(fill = Vegetarian)) +
+  ggtitle(paste("Vegetarians distribution in the", top_n_levels, "biggest cities", sep = " ")) +
+  coord_flip() +
+  theme(legend.position = "bottom")
