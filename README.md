@@ -1,0 +1,2 @@
+# Posts
+Little and short scripts focused on show shortcuts to commit common tasks on R
