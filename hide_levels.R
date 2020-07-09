@@ -1,4 +1,5 @@
 library(tidyverse)
+library(ggpubr)
 set.seed(125)
 my_data <-
   data.frame("Fruit" = rep(c("apple","banana","strawberry",NA), 
