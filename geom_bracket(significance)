@@ -1,0 +1,112 @@
+library(tidyverse)
+library(ggpubr) # Contain the "geom_bracket"
+
+# Prepare the data --------------------------------------------------------
+
+my_data <- data.frame("Vehicle" = sample(x = c("car", "motorbike"), 
+                                           size = 300, 
+                                           replace = T, 
+                                           prob = c(0.8,0.2)),
+                      "Age" = 0)
+
+my_data[my_data$Vehicle == "car","Age"] <- sample(x = c("18-30","31-50","51-80"),
+                                                  size = sum(my_data$Vehicle == "car"),
+                                                  replace = T,
+                                                  prob = c(0.2,0.7,0.1))
+
+my_data[my_data$Vehicle == "motorbike","Age"] <- sample(x = c("18-30","31-50","51-80"),
+                                                  size = sum(my_data$Vehicle == "motorbike"),
+                                                  replace = T,
+                                                  prob = c(0.7,0.3,0))
+
+# Compute statistics ------------------------------------------------------
+
+my_table <- table(my_data$Vehicle,my_data$Age)
+my_table
+# The distribution does not follow the chi-square distribution, but as there is anybody from 51-80 driving a motorbike chi-square doesn't works properly, we could use fisher exact test
+chi_square_result <- chisq.test(x = my_table)
+chi_square_result$p.value
+fisher_result <- fisher.test(x = my_table)
+fisher_result$p.value
+
+# Difference in age of car drivers significance
+car_table <- my_data %>% 
+              filter(Vehicle == "car") %>%
+              table()
+
+chi_square_cars_result <- chisq.test(car_table)
+# A significant p-value in the chi-square test of homogenicity
+chi_square_cars_result$p.value
+
+# Visual check of what cell it's different --------------------------------
+
+# If you want to look what cells have values different from expected you can visually
+# check it looking the contribution of the residuals
+
+contribution <- 
+  chi_square_cars_result$residuals^2/chi_square_cars_result$statistic * 100
+
+data_frame(contribution)
+data_frame(contribution) %>% 
+  ggplot(aes(x = unique(my_data$Age), y = contribution,
+             fill = contribution)) +
+  geom_col()
+
+# Calculate pairwise statistics -------------------------------------------
+
+# rstatix it's a package that brings some functions that allow multiple comparisons
+
+car_stats <- rstatix::pairwise_chisq_gof_test(x = car_table)  
+
+car_stats
+
+# unfortunately pairwise comparison seems the delete the levels of the factor, they say "grp1" instead of "18-30", we will parse it
+# We need to relabel the groups
+names_vector <- setNames(object = levels(as.factor(my_data$Age)),
+                         nm = c("grp1","grp2","grp3"))
+car_stats$group1 <- names_vector[car_stats$group1] %>%
+  as.data.frame() %>%
+  pull()
+car_stats$group2 <- names_vector[car_stats$group2] %>%
+  as.data.frame() %>%
+  pull()
+
+car_stats
+# I will set the y.position to plot later the brackets
+car_stats$y.position <- my_data %>%
+  filter(Vehicle == "car") %>%
+  group_by(Age) %>%
+  summarise(count = n()) %>%
+  ungroup %>%
+  mutate(y.position = max(count) + row_number() * 5) %>%
+  pull(y.position)
+# Plot --------------------------------------------------------------------
+
+A <- my_data %>%
+      filter(Vehicle == "car") %>%
+      ggplot(aes(x = Age)) +
+      geom_bar(aes(fill = Age)) +
+      scale_fill_viridis_d(direction = -1) +
+      theme(legend.position = "bottom")
+
+B <- A + 
+      geom_bracket(data = car_stats, 
+                   aes(xmin = group1,
+                       xmax = group2,
+                       label = paste("p-value =", p.adj, sep = " "),
+                       y.position = y.position),
+                   step.increase = 1) + # Helps to avoid overlapping of the brackets
+      theme(legend.position = "bottom") 
+C <- B +
+       geom_text(x = "51-80", 
+            y = 140, 
+            label = paste("Chi-square test \n", 
+                          #formatC helps to display just 3 digits of the p-value
+                          formatC(chi_square_cars_result$p.value,
+                                  digits = 2,
+                                  format = "e"),
+                          sep = ""))
+ggpubr::ggarrange(plotlist = list(A,B,C), 
+                  nrow = 1,
+                  labels = "AUTO", 
+                  common.legend = T)
