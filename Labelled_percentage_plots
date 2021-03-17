@@ -1,0 +1,88 @@
+
+# Libraries and data loading ----------------------------------------------
+
+# Loading libraries
+library(tidyverse)
+library(ggpubr)
+# Set data to work
+iris_data <- iris
+
+# I will create a new var called "gardener" just for didactic 
+gardeners_names <- rep(x = c("Tom","Melissa","Peter"), c(20,50,80))
+
+set.seed(seed = 1992, sample.kind = "default")
+iris_data$gardener <- gardeners_names[sample(x = 1:150, replace = F)]
+
+
+# Function "extract_labels" ---------------------------------------------------------------
+
+extract_labels <- function(dataset,
+                           group = colnames(dataset)[1], 
+                           count = colnames(dataset)[3]) {
+  temp_dataset <- ungroup(dataset)
+  temp_dataset <- temp_dataset %>% group_by(group=get(group))
+  temp_dataset <- temp_dataset %>%
+    mutate(total_per_group = sum(get(count)),
+           percentage = get(count) / total_per_group,
+           row = row_number(),
+           x_position = group,
+           y_position = 1-cumsum(percentage)+percentage/2)
+  
+   return(temp_dataset)
+}
+
+# If you prefer another grouping variable, please, put it in quotes "var"
+# example: extract_labels(summarised_data, group = "gardener")
+
+# Prepare the data --------------------------------------------------------
+
+summarised_data <-
+  iris_data %>%
+    group_by(Species, gardener) %>%
+    summarise(seeds_planted = n())
+
+data_ready_to_plot1 <- summarised_data %>% extract_labels()
+data_ready_to_plot2 <- summarised_data %>% extract_labels(group = "gardener")
+# Conserving labels colors
+plot1 <-
+  data_ready_to_plot1 %>%
+    ggplot(aes(x = group, y = seeds_planted, fill = gardener)) +
+    geom_col(position = "fill") +
+    geom_label(aes(x = x_position, y = y_position, label = seeds_planted)) +
+    scale_y_continuous(labels = scales::percent) +
+    theme_classic() +
+    ggtitle("Seeds planted of each species")
+
+
+
+# Changing labels colors
+
+plot1_colored_labels <-
+  data_ready_to_plot1 %>%
+  ggplot(aes(x = group, y = seeds_planted, fill = gardener)) +
+  geom_col(position = "fill") +
+  geom_label(aes(x = x_position, y = y_position, label = seeds_planted),
+             # This is how you could change the colors
+                 color = rep(c("purple", "red", "black"), 3)) +
+  scale_y_continuous(labels = scales::percent) +
+  ggtitle("Seeds planted of each species")
+
+# Change the x-axis and visualize per gardeners instead of seeing (plot1) per species 
+plot2 <- 
+  data_ready_to_plot2 %>%
+  ggplot(aes(x = group, y = seeds_planted, fill = Species)) +
+  geom_col(position = "fill") +
+  geom_label(aes(x = x_position, y = y_position, label = seeds_planted)) +
+  scale_y_continuous(labels = scales::percent) +
+  ggtitle("Seeds planted by gardener")
+
+
+# Create the final plot ---------------------------------------------------
+
+# You can let the plots vertical (A,B), or put them in horizontal with coord_flip (C,D)
+ggpubr::ggarrange(plotlist = list(plot1, plot2,
+                                  plot1 + coord_flip(), plot2 + coord_flip()),
+                  ncol = 2, nrow = 2,
+                  labels = "AUTO")
+
+#Hope this can help you !
